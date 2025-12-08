@@ -1,0 +1,4 @@
+# Optional: Only install if using PostgreSQL database
+# If using SQLite (default), you don't need this
+psycopg2-binary>=2.9.0
+
