@@ -74,6 +74,7 @@ playwright install chromium
 
 # Test configuration
 python3 -c "from src.config import Config; print('Config OK')"
+python3 -c "from src.database.models import IPOApplication; print(' Models work!')"
 
 # Run IPO application
 python3 scripts/apply_ipo.py
