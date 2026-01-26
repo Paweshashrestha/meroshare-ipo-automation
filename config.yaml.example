@@ -1,0 +1,21 @@
+meroshare:
+  accounts:
+    - username: "YOUR_USERNAME"
+      password: "YOUR_PASSWORD"
+      dp_name: "BANK NAME"
+      bank_name: "BANK NAME"
+      crn: "CRN_NUMBER"
+      boid: "BOID_NUMBER"
+      transaction_pin: "PIN"
+      applied_kitta: "10"
+
+database:
+  type: "sqlite"
+  path: "ipo_applications.db"
+
+telegram:
+  bot_token: "YOUR_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
+
+headless: true
+
