@@ -1,0 +1,9 @@
+[Unit]
+Description=Run IPO check daily at 12:45 Nepal time
+
+[Timer]
+OnCalendar=*-*-* 12:45:00
+Persistent=yes
+
+[Install]
+WantedBy=timers.target

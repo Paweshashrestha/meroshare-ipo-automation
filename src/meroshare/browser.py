@@ -37,9 +37,25 @@ class BrowserManager:
         if self.playwright:
             self.playwright.stop()
     
-    def navigate(self, url: str, wait_timeout: int = 30000):
-        self.page.goto(url, wait_until='networkidle', timeout=wait_timeout)
-        time.sleep(2)
+    _NETWORK_RETRY_ERRORS = (
+        "ERR_NETWORK_CHANGED", "ERR_CONNECTION_RESET", "ERR_CONNECTION_REFUSED",
+        "ERR_INTERNET_DISCONNECTED", "ERR_NAME_NOT_RESOLVED", "NS_BINDING_ABORTED"
+    )
+
+    def navigate(self, url: str, wait_timeout: int = 30000, retries: int = 5):
+        for attempt in range(retries):
+            try:
+                self.page.goto(url, wait_until='networkidle', timeout=wait_timeout)
+                time.sleep(2)
+                return
+            except Exception as e:
+                err_str = str(e)
+                if attempt < retries - 1 and any(x in err_str for x in self._NETWORK_RETRY_ERRORS):
+                    wait = (attempt + 1) * 10
+                    logger.warning(f"Navigation failed ({err_str[:80]}...), retry in {wait}s ({attempt + 1}/{retries})")
+                    time.sleep(wait)
+                else:
+                    raise
     
     def wait_for_captcha(self, timeout: int = 30):
         logger.info("Checking for CAPTCHA...")

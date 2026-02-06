@@ -71,11 +71,14 @@ def check_for_available_ipos(browser: BrowserManager) -> Tuple[bool, List]:
         if not browser.page:
             return False, []
         
-        # Wait for page to fully load
         browser.page.wait_for_load_state("networkidle")
+        browser.page.wait_for_timeout(3000)
+        try:
+            browser.page.wait_for_selector("table tbody tr, tbody tr, app-no-records-found", timeout=15000)
+        except Exception:
+            pass
         browser.page.wait_for_timeout(2000)
         
-        # Check for "No Records" message
         no_records = browser.page.query_selector("app-no-records-found .fallback-title-message, .no-records, [class*='no-record']")
         if no_records:
             text = no_records.inner_text().strip()
@@ -122,13 +125,12 @@ def check_for_available_ipos(browser: BrowserManager) -> Tuple[bool, List]:
         
         if not ipo_rows:
             logger.warning("No IPO rows found with any selector")
-            # Log page structure for debugging
             page_html = browser.page.content()
             if "apply" in page_html.lower() or "ipo" in page_html.lower():
-                logger.warning("Page contains 'apply' or 'ipo' text but no rows detected - page structure may have changed")
+                logger.warning("Page has 'apply'/'ipo' text but no rows - table may still be loading or structure changed")
             return False, []
         
-        logger.info(f"Found {len(ipo_rows)} potential IPO entries")
+        logger.info(f"Found {len(ipo_rows)} IPO row(s) on ASBA page")
         return True, ipo_rows
     except Exception as e:
         logger.error(f"Error checking for IPOs: {e}", exc_info=True)
@@ -642,6 +644,7 @@ def find_matching_ipo(browser: BrowserManager, ipo_rows: List) -> Optional[Dict[
             except Exception:
                 navigate_to_asba(browser)
             continue
+    logger.info(f"Checked {len(ipo_rows)} IPO(s), none matched (Price=100, Type=IPO, Ordinary Shares)")
     return None
 
 
@@ -765,7 +768,8 @@ def main():
             send_telegram_notification(config, "❌ Error: Missing required config")
             return False
         
-        with BrowserManager(headless=False) as browser:
+        headless = config.get("headless", True)
+        with BrowserManager(headless=headless) as browser:
             if not browser.page:
                 logger.error("Browser page not initialized")
                 return False
@@ -777,8 +781,9 @@ def main():
             
             logger.info("Logging in with check account...")
             if not login.login():
-                logger.error("Login failed")
-                send_telegram_notification(config, f"❌ Login failed for check account: {check_account.get('username', 'N/A')}")
+                reason = getattr(login, "last_error", "") or "Login failed"
+                logger.error(f"Login failed: {reason}")
+                send_telegram_notification(config, f"❌ Login failed for check account {check_account.get('username', 'N/A')}: {reason}")
                 return False
             
             if not navigate_to_asba(browser):
@@ -786,34 +791,39 @@ def main():
             
             has_ipos, ipo_rows = check_for_available_ipos(browser)
             logger.info(f"IPO check result: has_ipos={has_ipos}, rows_found={len(ipo_rows) if ipo_rows else 0}")
-            if not has_ipos:
-                logger.warning("No IPOs detected on the page")
+
+            matching_ipo = None
+            if has_ipos and ipo_rows:
+                logger.info(f"Searching for matching IPO among {len(ipo_rows)} IPO(s)...")
+                matching_ipo = find_matching_ipo(browser, ipo_rows)
+            elif not has_ipos and other_accounts:
+                logger.info("Account 1: No IPOs on page (may already have applied). Will try other accounts.")
+                send_telegram_notification(config, "ℹ️ Account 1: No IPOs (may already applied). Checking accounts 2 & 3...")
+            elif not has_ipos:
                 send_telegram_notification(config, "🔍 No IPOs available currently")
                 return True
-            
-            # Step 2: Find matching IPO
-            logger.info(f"Searching for matching IPO among {len(ipo_rows)} IPO(s)...")
-            matching_ipo = find_matching_ipo(browser, ipo_rows)
-            if not matching_ipo:
-                logger.warning("No matching IPO found (Price: Rs. 100, Type: IPO, Group: Ordinary Shares)")
-                send_telegram_notification(config, "ℹ️ No matching IPO (Rs. 100, IPO, Ordinary Shares) found")
-                return True
-            
-            company_name = matching_ipo.get('company_name', 'Unknown')
-            logger.info(f"Found matching IPO: {company_name}")
-            send_telegram_notification(config, f"✅ Found matching IPO!\n\n📊 Company: {company_name}\n💰 Price: Rs. 100\n📈 Type: IPO - Ordinary Shares\n\nApplying with all accounts...")
-            
-            ipo_index = matching_ipo.get('row_index', 0)
             applied_count = 0
-            
-            # Step 3: Apply with check account first
-            logger.info(f"Applying with check account: {check_account.get('username', 'N/A')}")
-            if apply_for_ipo_with_account(browser, check_account, config, ipo_index, company_name):
-                applied_count += 1
-                if browser.page:
-                    browser.page.wait_for_timeout(3000)
-            
-            # Step 4: Apply with all other accounts
+            ipo_index = 0
+            company_name = "Unknown"
+
+            if matching_ipo:
+                company_name = matching_ipo.get('company_name', 'Unknown')
+                ipo_index = matching_ipo.get('row_index', 0)
+                logger.info(f"Found matching IPO: {company_name}")
+                send_telegram_notification(config, f"✅ Found matching IPO!\n\n📊 Company: {company_name}\n💰 Price: Rs. 100\n📈 Type: IPO - Ordinary Shares\n\nApplying with all accounts...")
+                logger.info(f"Applying with check account: {check_account.get('username', 'N/A')}")
+                if apply_for_ipo_with_account(browser, check_account, config, ipo_index, company_name):
+                    applied_count += 1
+                    if browser.page:
+                        browser.page.wait_for_timeout(3000)
+                else:
+                    send_telegram_notification(config, f"❌ Account 1 ({check_account.get('username', 'N/A')}): Apply failed (may already have applied)")
+            else:
+                if has_ipos:
+                    logger.info("Account 1: No matching IPO (may already have applied). Trying other accounts...")
+                    send_telegram_notification(config, "ℹ️ Account 1: No matching IPO (may already applied). Checking accounts 2 & 3...")
+
+            # Step 3: Apply with all other accounts (2 and 3)
             for account_idx, account_config in enumerate(other_accounts, 2):
                 try:
                     logger.info(f"\n{'='*50}")
@@ -825,25 +835,61 @@ def main():
                         logger.error(f"Account {account_idx}: Missing required config")
                         continue
                     
-                    # Logout and login with next account
-                    if not browser.page:
+                    if not browser.page or not browser.context:
                         continue
-                    browser.page.goto("https://meroshare.cdsc.com.np/#/login")
-                    browser.page.wait_for_load_state("networkidle")
-                    browser.page.wait_for_timeout(2000)
-                    
+                    try:
+                        browser.context.clear_cookies()
+                        if browser.page:
+                            browser.page.close()
+                        browser.page = browser.context.new_page()
+                        browser.navigate("https://meroshare.cdsc.com.np/#/login")
+                        browser.page.wait_for_timeout(5000)
+                    except Exception as nav_err:
+                        logger.warning(f"New page / navigate failed: {nav_err}")
                     temp_config = Config()
                     temp_config.config['meroshare'] = account_config
-                    login = MeroShareLogin(browser, temp_config)
-                    
+
+                    def do_login():
+                        login_obj = MeroShareLogin(browser, temp_config)
+                        return login_obj.login(), getattr(login_obj, "last_error", "") or "Login failed"
+
                     logger.info("Logging in...")
-                    if not login.login():
-                        logger.error("Login failed")
-                        send_telegram_notification(config, f"❌ Account {account_idx} ({account_config.get('username', 'N/A')}): Login failed")
+                    ok, reason = do_login()
+                    if not ok:
+                        logger.warning(f"Login failed, retrying with fresh page...")
+                        try:
+                            browser.context.clear_cookies()
+                            if browser.page:
+                                browser.page.close()
+                            browser.page = browser.context.new_page()
+                            browser.navigate("https://meroshare.cdsc.com.np/#/login")
+                            browser.page.wait_for_timeout(5000)
+                            ok, reason = do_login()
+                        except Exception as retry_err:
+                            logger.warning(f"Retry failed: {retry_err}")
+                    if not ok:
+                        logger.error(f"Login failed: {reason}")
+                        send_telegram_notification(config, f"❌ Account {account_idx} ({account_config.get('username', 'N/A')}): {reason}")
                         continue
-                    
-                    # Use company_name from matching_ipo
-                    if apply_for_ipo_with_account(browser, account_config, config, ipo_index, company_name):
+
+                    acc_ipo_index = ipo_index
+                    acc_company_name = company_name
+                    if not matching_ipo:
+                        if not navigate_to_asba(browser):
+                            continue
+                        has_acc_ipos, acc_ipo_rows = check_for_available_ipos(browser)
+                        if not has_acc_ipos or not acc_ipo_rows:
+                            logger.info(f"Account {account_idx}: No IPOs on their ASBA page")
+                            continue
+                        acc_matching = find_matching_ipo(browser, acc_ipo_rows)
+                        if not acc_matching:
+                            logger.info(f"Account {account_idx}: No matching IPO for them")
+                            continue
+                        acc_ipo_index = acc_matching.get('row_index', 0)
+                        acc_company_name = acc_matching.get('company_name', 'Unknown')
+                        logger.info(f"Account {account_idx}: Found matching IPO: {acc_company_name}")
+
+                    if apply_for_ipo_with_account(browser, account_config, config, acc_ipo_index, acc_company_name):
                         applied_count += 1
                         if browser.page:
                             browser.page.wait_for_timeout(3000)

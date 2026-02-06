@@ -1,0 +1,12 @@
+[Unit]
+Description=IPO check (run once at 10:00)
+After=network.target
+
+[Service]
+Type=oneshot
+User=paweshashrestha
+WorkingDirectory=/home/paweshashrestha/Desktop/ipo
+Environment="PATH=/home/paweshashrestha/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/bin/env python3 /home/paweshashrestha/Desktop/ipo/src/scheduler/run_once.py
+StandardOutput=journal
+StandardError=journal

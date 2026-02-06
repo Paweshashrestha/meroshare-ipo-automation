@@ -12,6 +12,7 @@ class MeroShareLogin:
         self.browser = browser
         self.config = config
         self.meroshare_config = config.get_meroshare()
+        self.last_error: str = ""
 
     def _select_dp_option(self, dp_field, dp_name: str):
         """Select DP option and extract clientId."""
@@ -89,9 +90,12 @@ class MeroShareLogin:
             logger.info("Navigating to MeroShare login page...")
             self.browser.navigate("https://meroshare.cdsc.com.np/#/login")
             time.sleep(2)
+            if not self.browser.wait_for_element('input[type="password"]', timeout=15000):
+                self.last_error = "Login form did not load in time"
+                return False
 
             if self.browser.wait_for_captcha():
-                logger.warning("CAPTCHA detected. Please complete manually.")
+                self.last_error = "CAPTCHA detected"
                 return False
 
             username = self.meroshare_config.get("username")
@@ -99,7 +103,7 @@ class MeroShareLogin:
             dp_name = self.meroshare_config.get("dp_name")
 
             if not all([username, password, dp_name]):
-                logger.error("Missing required credentials in config")
+                self.last_error = "Missing credentials in config"
                 return False
 
             logger.info("Filling login credentials...")
@@ -111,23 +115,27 @@ class MeroShareLogin:
             dp_field = self.browser.page.query_selector("select")
 
             if not all([username_field, password_field, dp_field]):
-                logger.error("Required form fields not found")
+                self.last_error = "Login form fields not found"
                 return False
 
+            username_field.fill("")
+            time.sleep(0.3)
             username_field.fill(username)
+            password_field.fill("")
+            time.sleep(0.3)
             password_field.fill(password)
             time.sleep(0.5)
 
             _, extracted_client_id = self._select_dp_option(dp_field, dp_name)
 
             if not extracted_client_id:
-                logger.error("Could not extract client_id from DP option")
+                self.last_error = "Could not select DP option"
                 return False
 
             client_id = str(extracted_client_id)
 
             if not client_id or client_id == "0":
-                logger.error(f"clientId is invalid: {client_id}")
+                self.last_error = "Invalid clientId"
                 return False
 
             logger.info(f"Using extracted client_id: {client_id}")
@@ -140,7 +148,7 @@ class MeroShareLogin:
                 'button[type="submit"], button:has-text("Login"), button:has-text("LOGIN")'
             )
             if not login_button:
-                logger.error("Login button not found")
+                self.last_error = "Login button not found"
                 return False
 
             logger.info("Clicking login button...")
@@ -165,7 +173,10 @@ class MeroShareLogin:
                     '.error, .alert-danger, [class*="error"]'
                 )
                 if error_elem:
-                    logger.error(f"Login failed: {error_elem.inner_text()[:100]}")
+                    self.last_error = error_elem.inner_text()[:150].strip()
+                    logger.error(f"Login failed: {self.last_error}")
+                else:
+                    self.last_error = "Login failed (error on page)"
                 return False
 
             if "login" not in current_url or any(
@@ -175,9 +186,10 @@ class MeroShareLogin:
                 logger.info("Login successful!")
                 return True
 
-            logger.warning("Login status unclear")
+            self.last_error = "Login status unclear (still on login page?)"
             return False
 
         except Exception as e:
+            self.last_error = str(e)[:150]
             logger.error(f"Login error: {e}", exc_info=True)
             return False
