@@ -11,6 +11,11 @@ from src.config import Config
 from src.meroshare.browser import BrowserManager
 from src.meroshare.login import MeroShareLogin
 
+MEROSHARE_LOGIN_URL = "https://meroshare.cdsc.com.np/#/login"
+ASBA_LINK_SELECTOR = 'a[href="#/asba"]'
+TELEGRAM_REQUEST_TIMEOUT = 10
+ASBA_NAVIGATE_TIMEOUT_MS = 5000
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -35,33 +40,34 @@ def send_telegram_notification(config: Config, message: str) -> bool:
             "parse_mode": "HTML"
         }
         
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=TELEGRAM_REQUEST_TIMEOUT)
         if response.status_code == 200:
             logger.info("Telegram notification sent")
             return True
         else:
-            logger.warning(f"Failed to send Telegram notification: {response.status_code}")
+            logger.warning("Failed to send Telegram notification: %s", response.status_code)
             return False
     except Exception as e:
-        logger.warning(f"Error sending Telegram notification: {e}")
+        logger.warning("Error sending Telegram notification: %s", e)
         return False
 
 
 def navigate_to_asba(browser: BrowserManager) -> bool:
-    """Navigate to ASBA section."""
+    """Navigate to ASBA section. Returns True on success."""
     try:
-        if not browser.page:
+        page = browser.page
+        if not page:
             return False
-        asba_link = browser.page.wait_for_selector('a[href="#/asba"]', timeout=5000)
+        asba_link = page.wait_for_selector(ASBA_LINK_SELECTOR, timeout=ASBA_NAVIGATE_TIMEOUT_MS)
         if not asba_link:
             return False
         asba_link.click()
-        browser.page.wait_for_load_state("networkidle")
-        browser.page.wait_for_timeout(2000)
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
         logger.info("Navigated to ASBA section")
         return True
     except Exception as e:
-        logger.error(f"Failed to navigate to ASBA: {e}")
+        logger.error("Failed to navigate to ASBA: %s", e)
         return False
 
 
@@ -674,12 +680,12 @@ def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str
             for r in ipo_rows:
                 try:
                     row_text = r.inner_text()
-                    # Check if company name appears in the row
                     if company_name.lower() in row_text.lower():
                         row = r
                         logger.info(f"Found IPO by company name: {company_name}")
                         break
-                except Exception:
+                except Exception as e:
+                    logger.debug("Row inner_text failed: %s", e)
                     continue
         
         # Fall back to index if name search didn't work
@@ -842,7 +848,7 @@ def main():
                         if browser.page:
                             browser.page.close()
                         browser.page = browser.context.new_page()
-                        browser.navigate("https://meroshare.cdsc.com.np/#/login")
+                        browser.navigate(MEROSHARE_LOGIN_URL)
                         browser.page.wait_for_timeout(5000)
                     except Exception as nav_err:
                         logger.warning(f"New page / navigate failed: {nav_err}")
@@ -856,13 +862,13 @@ def main():
                     logger.info("Logging in...")
                     ok, reason = do_login()
                     if not ok:
-                        logger.warning(f"Login failed, retrying with fresh page...")
+                        logger.warning("Login failed, retrying with fresh page...")
                         try:
                             browser.context.clear_cookies()
                             if browser.page:
                                 browser.page.close()
                             browser.page = browser.context.new_page()
-                            browser.navigate("https://meroshare.cdsc.com.np/#/login")
+                            browser.navigate(MEROSHARE_LOGIN_URL)
                             browser.page.wait_for_timeout(5000)
                             ok, reason = do_login()
                         except Exception as retry_err:

@@ -1,10 +1,16 @@
+from typing import Optional
+
 from src.meroshare.browser import BrowserManager
 from src.config import Config
 import logging
 import time
 
-
 logger = logging.getLogger(__name__)
+
+LOGIN_URL = "https://meroshare.cdsc.com.np/#/login"
+LOGIN_FORM_WAIT_TIMEOUT_MS = 15000
+CAPTCHA_WAIT_TIMEOUT_SEC = 30
+POST_LOGIN_WAIT_SEC = 5
 
 
 class MeroShareLogin:
@@ -14,7 +20,7 @@ class MeroShareLogin:
         self.meroshare_config = config.get_meroshare()
         self.last_error: str = ""
 
-    def _select_dp_option(self, dp_field, dp_name: str):
+    def _select_dp_option(self, dp_field, dp_name: Optional[str]):
         """Select DP option and extract clientId."""
         if not dp_name:
             logger.warning("No dp_name provided for DP selection")
@@ -44,9 +50,12 @@ class MeroShareLogin:
         logger.warning(f"Could not find DP option matching: {dp_name}")
         return None, None
 
-    def _setup_ajax_interceptors(self, client_id: str):
+    def _setup_ajax_interceptors(self, client_id: str) -> None:
         """Set up AJAX interceptors to inject clientId into network requests."""
-        self.browser.page.evaluate(
+        page = self.browser.page
+        if not page:
+            return
+        page.evaluate(
             f"""
             (function() {{
                 var cid = {client_id};
@@ -85,12 +94,16 @@ class MeroShareLogin:
         )
 
     def login(self) -> bool:
-        """Perform login to MeroShare."""
+        """Perform login to MeroShare. Returns True on success, sets self.last_error on failure."""
         try:
             logger.info("Navigating to MeroShare login page...")
-            self.browser.navigate("https://meroshare.cdsc.com.np/#/login")
+            self.browser.navigate(LOGIN_URL)
             time.sleep(2)
-            if not self.browser.wait_for_element('input[type="password"]', timeout=15000):
+            page = self.browser.page
+            if not page:
+                self.last_error = "No browser page"
+                return False
+            if not self.browser.wait_for_element('input[type="password"]', timeout=LOGIN_FORM_WAIT_TIMEOUT_MS):
                 self.last_error = "Login form did not load in time"
                 return False
 
@@ -108,11 +121,11 @@ class MeroShareLogin:
 
             logger.info("Filling login credentials...")
 
-            username_field = self.browser.page.query_selector(
+            username_field = page.query_selector(
                 'input[name*="username" i]'
             )
-            password_field = self.browser.page.query_selector('input[type="password"]')
-            dp_field = self.browser.page.query_selector("select")
+            password_field = page.query_selector('input[type="password"]')
+            dp_field = page.query_selector("select")
 
             if not all([username_field, password_field, dp_field]):
                 self.last_error = "Login form fields not found"
@@ -144,7 +157,7 @@ class MeroShareLogin:
 
             time.sleep(1)
 
-            login_button = self.browser.page.query_selector(
+            login_button = page.query_selector(
                 'button[type="submit"], button:has-text("Login"), button:has-text("LOGIN")'
             )
             if not login_button:
@@ -153,10 +166,10 @@ class MeroShareLogin:
 
             logger.info("Clicking login button...")
             login_button.click()
-            time.sleep(5)
+            time.sleep(POST_LOGIN_WAIT_SEC)
 
-            current_url = self.browser.page.url.lower()
-            page_text = self.browser.page.inner_text("body").lower()
+            current_url = page.url.lower()
+            page_text = page.inner_text("body").lower()
 
             if any(
                 err in page_text
@@ -169,7 +182,7 @@ class MeroShareLogin:
                     "unauthorized",
                 ]
             ):
-                error_elem = self.browser.page.query_selector(
+                error_elem = page.query_selector(
                     '.error, .alert-danger, [class*="error"]'
                 )
                 if error_elem:
@@ -191,5 +204,5 @@ class MeroShareLogin:
 
         except Exception as e:
             self.last_error = str(e)[:150]
-            logger.error(f"Login error: {e}", exc_info=True)
+            logger.error("Login error: %s", e, exc_info=True)
             return False
