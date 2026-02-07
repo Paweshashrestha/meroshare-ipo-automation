@@ -3,7 +3,7 @@ import yaml
 from typing import Dict, Any
 
 class Config:
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str | None = None):
         if config_path:
             self.config_path = config_path
         elif os.getenv('CONFIG_PATH'):
@@ -27,7 +27,7 @@ class Config:
         self.config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
-        if os.path.exists(self.config_path):
+        if self.config_path and os.path.exists(self.config_path):
             with open(self.config_path, 'r') as f:
                 return yaml.safe_load(f) or {}
         else:
@@ -62,10 +62,4 @@ class Config:
     
     def get_telegram(self) -> Dict[str, Any]:
         return self.config.get('telegram', {})
-    
-    def get_email(self) -> Dict[str, Any]:
-        return self.config.get('email', {})
 
-
-        
-            
