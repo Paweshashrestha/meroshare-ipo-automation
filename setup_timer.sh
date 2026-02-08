@@ -13,7 +13,8 @@ for f in ipo-check.service ipo-check.timer; do
 done
 
 CURRENT_USER="${SUDO_USER:-$USER}"
-sed -e "s|IPO_PROJECT_DIR|$SCRIPT_DIR|g" -e "s|IPO_USER|$CURRENT_USER|g" \
+CURRENT_HOME="$(getent passwd "$CURRENT_USER" | cut -d: -f6)"
+sed -e "s|IPO_PROJECT_DIR|$SCRIPT_DIR|g" -e "s|IPO_USER|$CURRENT_USER|g" -e "s|IPO_HOME|$CURRENT_HOME|g" \
     "$SCRIPT_DIR/systemd/ipo-check.service" | sudo tee "$SYSTEMD_DIR/ipo-check.service" > /dev/null
 sudo cp "$SCRIPT_DIR/systemd/ipo-check.timer" "$SYSTEMD_DIR/"
 sudo systemctl daemon-reload

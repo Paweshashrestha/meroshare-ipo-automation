@@ -16,9 +16,18 @@ class BrowserManager:
     def __enter__(self):
         try:
             self.playwright = sync_playwright().start()
+            args = [
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+            ]
             self.browser = self.playwright.chromium.launch(
                 headless=self.headless,
-                args=['--disable-blink-features=AutomationControlled']
+                args=args,
+                timeout=60000,
             )
             self.context = self.browser.new_context(
                 viewport={'width': 1280, 'height': 720},

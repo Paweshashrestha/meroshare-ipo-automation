@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 import logging
@@ -780,6 +781,8 @@ def main():
             return False
         
         headless = config.get("headless", True)
+        if not os.environ.get("DISPLAY"):
+            headless = True
         with BrowserManager(headless=headless) as browser:
             if not browser.page:
                 logger.error("Browser page not initialized")

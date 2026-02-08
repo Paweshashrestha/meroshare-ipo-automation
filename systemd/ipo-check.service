@@ -6,7 +6,8 @@ After=network.target
 Type=oneshot
 User=IPO_USER
 WorkingDirectory=IPO_PROJECT_DIR
-Environment="PATH=IPO_PROJECT_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=IPO_HOME"
+Environment="PATH=IPO_PROJECT_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=/usr/bin/env python3 IPO_PROJECT_DIR/src/scheduler/run_once.py
 StandardOutput=journal
 StandardError=journal
