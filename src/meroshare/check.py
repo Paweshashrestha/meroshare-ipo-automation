@@ -14,7 +14,7 @@ from src.meroshare.login import MeroShareLogin
 MEROSHARE_LOGIN_URL = "https://meroshare.cdsc.com.np/#/login"
 ASBA_LINK_SELECTOR = 'a[href="#/asba"]'
 TELEGRAM_REQUEST_TIMEOUT = 10
-ASBA_NAVIGATE_TIMEOUT_MS = 5000
+ASBA_NAVIGATE_TIMEOUT_MS = 15000
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -62,6 +62,7 @@ def navigate_to_asba(browser: BrowserManager) -> bool:
         page = browser.page
         if not page:
             return False
+        page.wait_for_timeout(3000)
         asba_link = page.wait_for_selector(ASBA_LINK_SELECTOR, timeout=ASBA_NAVIGATE_TIMEOUT_MS)
         if not asba_link:
             return False

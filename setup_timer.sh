@@ -3,7 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEMD_DIR="/etc/systemd/system"
 
-echo "Setting up IPO check timer (runs daily at 12:45 Nepal time)..."
+echo "Setting up IPO check timer (runs daily at 11:11 Nepal time)..."
 
 for f in ipo-check.service ipo-check.timer; do
     if [ ! -f "$SCRIPT_DIR/systemd/$f" ]; then
@@ -20,7 +20,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ipo-check.timer
 
 echo ""
-echo "Timer enabled. IPO check will run daily at 12:45 (system local time)."
+echo "Timer enabled. IPO check will run daily at 11:11 (system local time)."
 echo "Set timezone to Nepal: sudo timedatectl set-timezone Asia/Kathmandu"
 echo ""
 echo "Commands:"

@@ -34,7 +34,7 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
    python3 src/meroshare/check.py
    ```
 
-6. **Optional: daily run at 12:45 (Linux with systemd)**
+6. **Optional: daily run at 11:11 (Linux with systemd)**
    From project root:
    ```bash
    sudo ./setup_timer.sh
@@ -121,13 +121,13 @@ headless: true
 python3 src/meroshare/check.py
 ```
 
-### Automated (daily at 12:45)
+### Automated (daily at 11:11)
 
 ```bash
 ./setup_timer.sh
 ```
 
-Uses a systemd timer to run the IPO check once daily at 12:45 (set timezone to Asia/Kathmandu for Nepal time).
+Uses a systemd timer to run the IPO check once daily at 11:11 (set timezone to Asia/Kathmandu for Nepal time).
 
 ## Project Structure
 
@@ -143,7 +143,7 @@ ipo/
 │   └── config.py           # Configuration management
 ├── config.yaml             # Configuration file
 ├── requirements.txt        # Python dependencies
-├── setup_timer.sh          # Systemd timer setup (daily 12:45)
+├── setup_timer.sh          # Systemd timer setup (daily 11:11)
 └── systemd/                # ipo-check.service, ipo-check.timer
 ```
 

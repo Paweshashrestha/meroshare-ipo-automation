@@ -1,5 +1,5 @@
 [Unit]
-Description=IPO check (run once at 12:45 Nepal time)
+Description=IPO check (run once at 11:11 Nepal time)
 After=network.target
 
 [Service]

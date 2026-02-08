@@ -1,8 +1,8 @@
 [Unit]
-Description=Run IPO check daily at 12:45 Nepal time
+Description=Run IPO check daily at 11:11 Nepal time
 
 [Timer]
-OnCalendar=*-*-* 12:45:00
+OnCalendar=*-*-* 11:11:00
 Persistent=yes
 
 [Install]
