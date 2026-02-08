@@ -7,8 +7,8 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
 
 1. **Clone and enter the project**
    ```bash
-   git clone <repo-url>
-   cd ipo
+   git clone https://github.com/YOUR_USERNAME/meroshare-ipo-automation.git
+   cd meroshare-ipo-automation
    ```
 
 2. **Python 3.8+ and virtualenv (recommended)**
@@ -35,13 +35,12 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
    python3 src/meroshare/check.py
    ```
 
-6. **Optional: daily run at 11:11 (Linux with systemd)**
+6. **Optional: daily run at 11:11 Nepal time (Linux with systemd)**
    From project root:
    ```bash
    sudo ./setup_timer.sh
-   sudo timedatectl set-timezone Asia/Kathmandu   # for Nepal time
    ```
-   Check: `systemctl list-timers ipo-check.timer` — next run time. Logs: `sudo journalctl -u ipo-check.service`.
+   No need to change system timezone; the timer uses Nepal time. Check: `sudo systemctl list-timers ipo-check.timer`. Logs: `sudo journalctl -u ipo-check.service`.
 
 ## Features
 
@@ -50,7 +49,7 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
 - **Form Auto-Fill**: Automatically fills application forms with account details
 - **Telegram Notifications**: Real-time notifications via Telegram bot
 - **Error Handling**: Robust error handling with detailed logging
-- **Scheduled Execution**: Can run as a systemd service for automated daily checks
+- **Scheduled Execution**: systemd timer runs the check daily at 11:11 Nepal time
 
 ## Requirements
 
@@ -122,18 +121,19 @@ headless: true
 python3 src/meroshare/check.py
 ```
 
-### Automated (daily at 11:11)
+### Automated (daily at 11:11 Nepal time)
 
+From project root:
 ```bash
-./setup_timer.sh
+sudo ./setup_timer.sh
 ```
 
-Uses a systemd timer to run the IPO check once daily at 11:11 (set timezone to Asia/Kathmandu for Nepal time).
+Uses a systemd timer; runs once daily at 11:11 Nepal time. No need to change system timezone.
 
 ## Project Structure
 
 ```
-ipo/
+meroshare-ipo-automation/
 ├── src/
 │   ├── meroshare/
 │   │   ├── browser.py      # Browser automation
@@ -142,10 +142,10 @@ ipo/
 │   ├── scheduler/
 │   │   └── run_once.py     # One-shot run (used by systemd timer)
 │   └── config.py           # Configuration management
-├── config.yaml             # Configuration file
-├── requirements.txt        # Python dependencies
-├── setup_timer.sh          # Systemd timer setup (daily 11:11)
-└── systemd/                # ipo-check.service, ipo-check.timer
+├── config.yaml             # Configuration file (create from config.yaml.example)
+├── requirements.txt       # Python dependencies
+├── setup_timer.sh         # Systemd timer setup (daily 11:11 Nepal time)
+└── systemd/               # ipo-check.service, ipo-check.timer
 ```
 
 ## How It Works

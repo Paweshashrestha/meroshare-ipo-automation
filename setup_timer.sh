@@ -21,8 +21,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ipo-check.timer
 
 echo ""
-echo "Timer enabled. IPO check will run daily at 11:11 (system local time)."
-echo "Set timezone to Nepal: sudo timedatectl set-timezone Asia/Kathmandu"
+echo "Timer enabled. IPO check will run daily at 11:11 Nepal time (no need to change system timezone)."
 echo ""
 echo "Commands:"
 echo "  Status:  sudo systemctl status ipo-check.timer"

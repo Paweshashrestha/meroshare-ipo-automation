@@ -3,6 +3,7 @@ Description=Run IPO check daily at 11:11 Nepal time
 
 [Timer]
 OnCalendar=*-*-* 11:11:00
+Timezone=Asia/Kathmandu
 Persistent=yes
 
 [Install]
