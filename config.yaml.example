@@ -1,6 +1,7 @@
 meroshare:
   accounts:
-    - username: "YOUR_USERNAME_1"
+    - account_name: "My account"
+      username: "YOUR_USERNAME_1"
       password: "YOUR_PASSWORD_1"
       dp_name: "BANK NAME"
       bank_name: "BANK NAME"
@@ -8,7 +9,8 @@ meroshare:
       boid: "BOID_NUMBER"
       transaction_pin: "PIN"
       applied_kitta: "10"
-    - username: "YOUR_USERNAME_2"
+    - account_name: "Brother's account"
+      username: "YOUR_USERNAME_2"
       password: "YOUR_PASSWORD_2"
       dp_name: "BANK NAME"
       bank_name: "BANK NAME"
@@ -16,7 +18,7 @@ meroshare:
       boid: "BOID_NUMBER"
       transaction_pin: "PIN"
       applied_kitta: "10"
-    # Add more accounts as needed (same fields per account).
+    # Add more accounts; account_name is optional (shows in Telegram, else username).
 
 telegram:
   bot_token: "YOUR_BOT_TOKEN"

@@ -83,7 +83,8 @@ List all MeroShare accounts under `meroshare.accounts`. The **first** account is
 ```yaml
 meroshare:
   accounts:
-    - username: "user1"
+    - account_name: "My account"
+      username: "user1"
       password: "pass1"
       dp_name: "BANK NAME"
       bank_name: "BANK NAME"
@@ -91,7 +92,8 @@ meroshare:
       boid: "BOID_NUMBER"
       transaction_pin: "PIN"
       applied_kitta: "10"
-    - username: "user2"
+    - account_name: "Brother's account"
+      username: "user2"
       password: "pass2"
       dp_name: "BANK NAME"
       bank_name: "BANK NAME"
@@ -108,7 +110,8 @@ telegram:
 headless: true
 ```
 
-Single account: use one item in the list. Each account must have: `username`, `password`, `dp_name`, `bank_name`, `crn`, `boid`, `transaction_pin`, and optionally `applied_kitta` (default 10).
+- **account_name** (optional): Label shown in Telegram and logs (e.g. "My account", "Brother's account"). If omitted, username is used.
+- Each account must have: `username`, `password`, `dp_name`, `bank_name`, `crn`, `boid`, `transaction_pin`, and optionally `applied_kitta` (default 10).
 
 ## Usage
 

@@ -23,6 +23,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def account_display_name(account_config: Dict[str, Any]) -> str:
+    return account_config.get("account_name") or account_config.get("username") or "N/A"
+
+
 def send_telegram_notification(config: Config, message: str) -> bool:
     """Send Telegram notification."""
     try:
@@ -589,7 +593,7 @@ def process_ipo_for_account(browser: BrowserManager, account_config: Dict[str, A
 ✅ <b>IPO Application Successful!</b>
 
 📊 <b>Company:</b> {company_name}
-👤 <b>Account:</b> {account_config.get('username', 'N/A')}
+👤 <b>Account:</b> {account_display_name(account_config)}
 📦 <b>Kitta:</b> {account_config.get('applied_kitta', '10')}
 💰 <b>Price:</b> Rs. 100 per share
 📈 <b>Type:</b> IPO - Ordinary Shares
@@ -712,22 +716,22 @@ def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str
         
         fill_result = fill_ipo_form(browser, account_config)
         if not fill_result:
-            logger.error(f"Failed to fill IPO form for account: {account_config.get('username', 'N/A')}")
+            logger.error(f"Failed to fill IPO form for account: {account_display_name(account_config)}")
             return False
         
         logger.info("Form filled successfully, now submitting...")
         submit_result = submit_ipo_form(browser, account_config)
         if not submit_result:
-            logger.error(f"Failed to submit IPO form for account: {account_config.get('username', 'N/A')}")
+            logger.error(f"Failed to submit IPO form for account: {account_display_name(account_config)}")
             return False
         
-        logger.info(f"Successfully applied for IPO with account: {account_config.get('username', 'N/A')}")
+        logger.info(f"Successfully applied for IPO with account: {account_display_name(account_config)}")
         
         message = f"""
 ✅ <b>IPO Application Successful!</b>
 
 📊 <b>Company:</b> {company_name}
-👤 <b>Account:</b> {account_config.get('username', 'N/A')}
+👤 <b>Account:</b> {account_display_name(account_config)}
 📦 <b>Kitta:</b> {account_config.get('applied_kitta', '10')}
 💰 <b>Price:</b> Rs. 100 per share
 📈 <b>Type:</b> IPO - Ordinary Shares
@@ -737,7 +741,7 @@ Application submitted successfully!
         send_telegram_notification(config, message)
         return True
     except Exception as e:
-        logger.error(f"Error applying for IPO with account {account_config.get('username', 'N/A')}: {e}", exc_info=True)
+        logger.error(f"Error applying for IPO with account {account_display_name(account_config)}: {e}", exc_info=True)
         return False
 
 
@@ -762,11 +766,11 @@ def main():
         check_account = accounts[0]
         other_accounts = accounts[1:] if len(accounts) > 1 else []
         
-        logger.info(f"Checking IPOs with account: {check_account.get('username', 'N/A')}")
+        logger.info(f"Checking IPOs with account: {account_display_name(check_account)}")
         if other_accounts:
             logger.info(f"Will apply with {len(other_accounts)} additional account(s) if IPO found")
         
-        send_telegram_notification(config, f"🚀 IPO Check Started\n\nChecking with: {check_account.get('username', 'N/A')}\nOther accounts: {len(other_accounts)}")
+        send_telegram_notification(config, f"🚀 IPO Check Started\n\nChecking with: {account_display_name(check_account)}\nOther accounts: {len(other_accounts)}")
         
         if not all([check_account.get("username"), check_account.get("password"), 
                    check_account.get("crn"), check_account.get("bank_name")]):
@@ -789,7 +793,7 @@ def main():
             if not login.login():
                 reason = getattr(login, "last_error", "") or "Login failed"
                 logger.error(f"Login failed: {reason}")
-                send_telegram_notification(config, f"❌ Login failed for check account {check_account.get('username', 'N/A')}: {reason}")
+                send_telegram_notification(config, f"❌ Login failed for check account {account_display_name(check_account)}: {reason}")
                 return False
             
             if not navigate_to_asba(browser):
@@ -817,13 +821,13 @@ def main():
                 ipo_index = matching_ipo.get('row_index', 0)
                 logger.info(f"Found matching IPO: {company_name}")
                 send_telegram_notification(config, f"✅ Found matching IPO!\n\n📊 Company: {company_name}\n💰 Price: Rs. 100\n📈 Type: IPO - Ordinary Shares\n\nApplying with all accounts...")
-                logger.info(f"Applying with check account: {check_account.get('username', 'N/A')}")
+                logger.info(f"Applying with check account: {account_display_name(check_account)}")
                 if apply_for_ipo_with_account(browser, check_account, config, ipo_index, company_name):
                     applied_count += 1
                     if browser.page:
                         browser.page.wait_for_timeout(3000)
                 else:
-                    send_telegram_notification(config, f"❌ Account 1 ({check_account.get('username', 'N/A')}): Apply failed (may already have applied)")
+                    send_telegram_notification(config, f"❌ Account 1 ({account_display_name(check_account)}): Apply failed (may already have applied)")
             else:
                 if has_ipos:
                     logger.info("Account 1: No matching IPO (may already have applied). Trying other accounts...")
@@ -833,7 +837,7 @@ def main():
             for account_idx, account_config in enumerate(other_accounts, 2):
                 try:
                     logger.info(f"\n{'='*50}")
-                    logger.info(f"Applying with Account {account_idx}/{len(accounts)}: {account_config.get('username', 'N/A')}")
+                    logger.info(f"Applying with Account {account_idx}/{len(accounts)}: {account_display_name(account_config)}")
                     logger.info(f"{'='*50}")
                     
                     if not all([account_config.get("username"), account_config.get("password"), 
@@ -875,7 +879,7 @@ def main():
                             logger.warning(f"Retry failed: {retry_err}")
                     if not ok:
                         logger.error(f"Login failed: {reason}")
-                        send_telegram_notification(config, f"❌ Account {account_idx} ({account_config.get('username', 'N/A')}): {reason}")
+                        send_telegram_notification(config, f"❌ Account {account_idx} ({account_display_name(account_config)}): {reason}")
                         continue
 
                     acc_ipo_index = ipo_index
