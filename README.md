@@ -1,6 +1,7 @@
 # MeroShare IPO Automation
 
 Automated IPO application system for MeroShare (Nepal Stock Exchange) that checks for available IPOs and automatically submits applications based on predefined criteria.
+**For personal use only.** Fork the repo on GitHub, then clone your fork to your machine; do not use it for commercial or unauthorized purposes.
 
 ## Setup (new user)
 
