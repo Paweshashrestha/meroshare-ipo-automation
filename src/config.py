@@ -56,10 +56,7 @@ class Config:
     
     def get_meroshare(self) -> Dict[str, Any]:
         return self.config.get('meroshare', {})
-    
-    def get_database(self) -> Dict[str, Any]:
-        return self.config.get('database', {})
-    
+
     def get_telegram(self) -> Dict[str, Any]:
         return self.config.get('telegram', {})
 

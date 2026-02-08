@@ -1,17 +1,22 @@
 meroshare:
   accounts:
-    - username: "YOUR_USERNAME"
-      password: "YOUR_PASSWORD"
+    - username: "YOUR_USERNAME_1"
+      password: "YOUR_PASSWORD_1"
       dp_name: "BANK NAME"
       bank_name: "BANK NAME"
       crn: "CRN_NUMBER"
       boid: "BOID_NUMBER"
       transaction_pin: "PIN"
       applied_kitta: "10"
-
-database:
-  type: "sqlite"
-  path: "ipo_applications.db"
+    - username: "YOUR_USERNAME_2"
+      password: "YOUR_PASSWORD_2"
+      dp_name: "BANK NAME"
+      bank_name: "BANK NAME"
+      crn: "CRN_NUMBER"
+      boid: "BOID_NUMBER"
+      transaction_pin: "PIN"
+      applied_kitta: "10"
+    # Add more accounts as needed (same fields per account).
 
 telegram:
   bot_token: "YOUR_BOT_TOKEN"
