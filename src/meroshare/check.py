@@ -28,6 +28,12 @@ def account_display_name(account_config: Dict[str, Any]) -> str:
     return account_config.get("account_name") or account_config.get("username") or "N/A"
 
 
+def _tg(s: str) -> str:
+    if not s:
+        return s
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def send_telegram_notification(config: Config, message: str) -> bool:
     """Send Telegram notification."""
     try:
@@ -175,19 +181,28 @@ def extract_ipo_details_from_form(browser: BrowserManager) -> Optional[Dict[str,
             except ValueError:
                 pass
         
+        page_text = browser.page.inner_text("body") or ""
         if price is None:
-            page_text = browser.page.inner_text("body")
             price_match = re.search(r'Price per Share[^\n]*\n[^\n]*?(\d+)', page_text, re.IGNORECASE)
             if price_match:
                 try:
                     price = int(price_match.group(1).strip())
                 except ValueError:
                     pass
-        
+        issue_open = re.search(r'Issue Open Date\s*\n\s*([^\n]+)', page_text, re.IGNORECASE)
+        issue_close = re.search(r'Issue Close Date\s*\n\s*([^\n]+)', page_text, re.IGNORECASE)
+        issue_manager = re.search(r'Issue Manager\s*\n\s*([^\n]+)', page_text, re.IGNORECASE)
+        min_qty = re.search(r'Minimum Quantity\s*\n\s*(\d+)', page_text, re.IGNORECASE)
+        max_qty = re.search(r'Maximum Quantity\s*\n\s*(\d+)', page_text, re.IGNORECASE)
         return {
             "share_type": share_type,
             "share_group": share_group,
-            "price": price
+            "price": price,
+            "issue_open": issue_open.group(1).strip() if issue_open else None,
+            "issue_close": issue_close.group(1).strip() if issue_close else None,
+            "issue_manager": issue_manager.group(1).strip() if issue_manager else None,
+            "min_qty": int(min_qty.group(1)) if min_qty else None,
+            "max_qty": int(max_qty.group(1)) if max_qty else None,
         }
     except Exception as e:
         logger.error(f"Error extracting IPO details: {e}")
@@ -286,20 +301,39 @@ def fill_ipo_form(browser: BrowserManager, account_config: Dict[str, Any]) -> bo
         bank_select = browser.page.query_selector('#selectBank, select[name="selectBank"]')
         if bank_select:
             bank_select.scroll_into_view_if_needed()
-            browser.page.wait_for_timeout(300)
-            options = bank_select.query_selector_all("option:not([value=''])")
+            browser.page.wait_for_timeout(500)
+            try:
+                browser.page.wait_for_function(
+                    '() => document.querySelectorAll("#selectBank option[value]:not([value=\\"\\"])").length > 0',
+                    timeout=15000
+                )
+            except Exception:
+                try:
+                    bank_select.click()
+                    browser.page.wait_for_timeout(2000)
+                    browser.page.wait_for_function(
+                        '() => document.querySelectorAll("#selectBank option[value]:not([value=\\"\\"])").length > 0',
+                        timeout=10000
+                    )
+                except Exception as e:
+                    logger.warning(f"Bank options did not load: {e}")
+            options = bank_select.query_selector_all("option[value]:not([value=''])")
+            bank_selected = False
             for option in options:
                 option_text = option.inner_text().strip()
                 bank_name_clean = bank_name.upper().replace("LIMITED", "").replace("LTD", "").strip()
                 option_text_clean = option_text.upper().replace("LIMITED", "").replace("LTD", "").strip()
-                if (bank_name.upper() in option_text.upper() or 
+                if (bank_name.upper() in option_text.upper() or
                     bank_name_clean in option_text_clean or
                     option_text_clean in bank_name_clean):
                     bank_select.select_option(value=option.get_attribute("value"))
                     bank_select.evaluate('el => el.dispatchEvent(new Event("change", { bubbles: true }))')
                     browser.page.wait_for_timeout(2000)
+                    bank_selected = True
                     break
-            
+            if not bank_selected:
+                logger.error("No bank option matched or dropdown had no options - check bank_name in config")
+                return False
             account_select = browser.page.query_selector('select[name*="account" i], select[id*="account" i]')
             if account_select:
                 account_select.scroll_into_view_if_needed()
@@ -324,7 +358,7 @@ def fill_ipo_form(browser: BrowserManager, account_config: Dict[str, Any]) -> bo
             browser.page.wait_for_timeout(300)
             disclaimer_checkbox.check()
             browser.page.wait_for_timeout(500)
-        
+        browser.page.wait_for_timeout(1500)
         return True
     except Exception as e:
         logger.error(f"Error filling IPO form: {e}", exc_info=True)
@@ -340,13 +374,23 @@ def submit_ipo_form(browser: BrowserManager, account_config: Dict[str, Any]) -> 
         browser.page.wait_for_timeout(500)
         
         logger.info("Looking for Proceed button...")
+        try:
+            browser.page.wait_for_selector(
+                'button[type="submit"]:not([disabled]), button:has-text("Proceed"):not([disabled])',
+                timeout=10000
+            )
+        except Exception:
+            pass
         proceed_button = browser.page.query_selector(
             'button[type="submit"]:not([disabled]), button:has-text("Proceed"):not([disabled])'
         )
+        proceed_clicked = False
         if not proceed_button:
-            logger.warning("Proceed button not found - may already be on transaction PIN page")
-            # Continue to check for transaction PIN input
+            proceed_disabled = browser.page.query_selector('button[type="submit"]:disabled, button:has-text("Proceed"):disabled')
+            if proceed_disabled:
+                logger.warning("Proceed button is disabled - form may be incomplete (e.g. bank not selected)")
         else:
+            proceed_clicked = True
             logger.info("Found Proceed button, clicking...")
             # Scroll page first, then try to click
             browser.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
@@ -370,7 +414,7 @@ def submit_ipo_form(browser: BrowserManager, account_config: Dict[str, Any]) -> 
                 ''')
             
             browser.page.wait_for_load_state("networkidle")
-            browser.page.wait_for_timeout(3000)  # Wait longer for page to load
+            browser.page.wait_for_timeout(3000)
         
         logger.info("Looking for Transaction PIN input...")
         # Wait for transaction PIN input to appear
@@ -539,6 +583,9 @@ def submit_ipo_form(browser: BrowserManager, account_config: Dict[str, Any]) -> 
                 logger.error("Apply button not found or not clickable")
                 return False
         else:
+            if not proceed_clicked:
+                logger.error("Proceed button was not clicked and Transaction PIN not found - form likely incomplete")
+                return False
             logger.info("No Transaction PIN input found - form may have been submitted already or different flow")
             return True
     except Exception as e:
@@ -590,19 +637,13 @@ def process_ipo_for_account(browser: BrowserManager, account_config: Dict[str, A
                 if submit_ipo_form(browser, account_config):
                     logger.info(f"Successfully applied for IPO {idx + 1}")
                     
-                    # Send Telegram notification
-                    message = f"""
-✅ <b>IPO Application Successful!</b>
-
-📊 <b>Company:</b> {company_name}
-👤 <b>Account:</b> {account_display_name(account_config)}
-📦 <b>Kitta:</b> {account_config.get('applied_kitta', '10')}
-💰 <b>Price:</b> Rs. 100 per share
-📈 <b>Type:</b> IPO - Ordinary Shares
-
-Application submitted successfully!
-"""
-                    send_telegram_notification(config, message)
+                    kitta = account_config.get('applied_kitta', '10')
+                    send_telegram_notification(config, (
+                        "✅ <b>Applied</b>\n\n"
+                        f"📊 <b>{_tg(company_name)}</b>\n"
+                        f"👤 {_tg(account_display_name(account_config))} · 📦 {kitta} kitta\n"
+                        "💰 Rs. 100/share · Ordinary Shares"
+                    ))
                     return True
             
             if browser.page:
@@ -660,27 +701,19 @@ def find_matching_ipo(browser: BrowserManager, ipo_rows: List) -> Optional[Dict[
     return None
 
 
-def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str, Any], config: Config, ipo_index: int, company_name: Optional[str] = None) -> bool:
-    """Apply for IPO with a specific account."""
+def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str, Any], config: Config, ipo_index: int, company_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    """Apply for IPO with a specific account. Returns (success, failure_reason)."""
     try:
         if not browser.page:
-            return False
-        
-        # Navigate to ASBA and wait for page to load
+            return False, "No browser page"
         navigate_to_asba(browser)
         browser.page.wait_for_load_state("networkidle")
         browser.page.wait_for_timeout(3000)
-        
-        # Use the same IPO detection logic that worked in check_for_available_ipos
         has_ipos, ipo_rows = check_for_available_ipos(browser)
-        
         if not has_ipos or not ipo_rows:
             logger.error("No IPOs found on page - may have already been applied")
-            return False
-        
+            return False, "No IPOs on page (may already have applied)"
         logger.info(f"Found {len(ipo_rows)} IPO row(s) on page")
-        
-        # Try to find the IPO by company name first (most reliable)
         row = None
         if company_name:
             for r in ipo_rows:
@@ -693,8 +726,6 @@ def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str
                 except Exception as e:
                     logger.debug("Row inner_text failed: %s", e)
                     continue
-        
-        # Fall back to index if name search didn't work
         if not row:
             if ipo_index < len(ipo_rows):
                 row = ipo_rows[ipo_index]
@@ -702,49 +733,36 @@ def apply_for_ipo_with_account(browser: BrowserManager, account_config: Dict[str
             else:
                 logger.warning(f"IPO index {ipo_index} out of range, using first available IPO")
                 row = ipo_rows[0] if ipo_rows else None
-        
         if not row:
             logger.error("Could not find IPO row")
-            return False
-        
+            return False, "Could not find IPO row"
         if not find_and_click_apply_button(browser, row):
-            return False
-        
+            return False, "Apply button not found or click failed"
         ipo_details = extract_ipo_details_from_form(browser)
         if not ipo_details or not check_ipo_conditions(ipo_details):
-            return False
-        
+            return False, "IPO details/conditions check failed"
         company_name = get_ipo_company_name(browser)
-        
         fill_result = fill_ipo_form(browser, account_config)
         if not fill_result:
             logger.error(f"Failed to fill IPO form for account: {account_display_name(account_config)}")
-            return False
-        
+            return False, "Form fill failed"
         logger.info("Form filled successfully, now submitting...")
         submit_result = submit_ipo_form(browser, account_config)
         if not submit_result:
             logger.error(f"Failed to submit IPO form for account: {account_display_name(account_config)}")
-            return False
-        
+            return False, "Submit failed"
         logger.info(f"Successfully applied for IPO with account: {account_display_name(account_config)}")
-        
-        message = f"""
-✅ <b>IPO Application Successful!</b>
-
-📊 <b>Company:</b> {company_name}
-👤 <b>Account:</b> {account_display_name(account_config)}
-📦 <b>Kitta:</b> {account_config.get('applied_kitta', '10')}
-💰 <b>Price:</b> Rs. 100 per share
-📈 <b>Type:</b> IPO - Ordinary Shares
-
-Application submitted successfully!
-"""
-        send_telegram_notification(config, message)
-        return True
+        kitta = account_config.get('applied_kitta', '10')
+        send_telegram_notification(config, (
+            "✅ <b>Applied</b>\n\n"
+            f"📊 <b>{_tg(company_name)}</b>\n"
+            f"👤 {_tg(account_display_name(account_config))} · 📦 {kitta} kitta\n"
+            "💰 Rs. 100/share · Ordinary Shares"
+        ))
+        return True, None
     except Exception as e:
         logger.error(f"Error applying for IPO with account {account_display_name(account_config)}: {e}", exc_info=True)
-        return False
+        return False, str(e)[:150]
 
 
 def main():
@@ -772,12 +790,16 @@ def main():
         if other_accounts:
             logger.info(f"Will apply with {len(other_accounts)} additional account(s) if IPO found")
         
-        send_telegram_notification(config, f"🚀 IPO Check Started\n\nChecking with: {account_display_name(check_account)}\nOther accounts: {len(other_accounts)}")
+        send_telegram_notification(config, (
+            "🚀 <b>IPO check started</b>\n\n"
+            f"🔑 Check account: <b>{_tg(account_display_name(check_account))}</b>\n"
+            f"👥 Accounts: <b>{len(accounts)}</b> (apply with all if IPO matches)"
+        ))
         
         if not all([check_account.get("username"), check_account.get("password"), 
                    check_account.get("crn"), check_account.get("bank_name")]):
             logger.error("Missing required config in check account")
-            send_telegram_notification(config, "❌ Error: Missing required config")
+            send_telegram_notification(config, "❌ <b>Config error</b>\n\nMissing required MeroShare/account settings. Check config.")
             return False
         
         headless = config.get("headless", True)
@@ -797,7 +819,11 @@ def main():
             if not login.login():
                 reason = getattr(login, "last_error", "") or "Login failed"
                 logger.error(f"Login failed: {reason}")
-                send_telegram_notification(config, f"❌ Login failed for check account {account_display_name(check_account)}: {reason}")
+                send_telegram_notification(config, (
+                    "❌ <b>Login failed</b>\n\n"
+                    f"Account: {_tg(account_display_name(check_account))}\n"
+                    f"Reason: {_tg(reason)}"
+                ))
                 return False
             
             if not navigate_to_asba(browser):
@@ -812,9 +838,12 @@ def main():
                 matching_ipo = find_matching_ipo(browser, ipo_rows)
             elif not has_ipos and other_accounts:
                 logger.info("Account 1: No IPOs on page (may already have applied). Will try other accounts.")
-                send_telegram_notification(config, "ℹ️ Account 1: No IPOs (may already applied). Checking accounts 2 & 3...")
+                send_telegram_notification(config, (
+                    "ℹ️ <b>Account 1</b> — No IPOs on ASBA\n\n"
+                    "May already have applied. Checking other accounts…"
+                ))
             elif not has_ipos:
-                send_telegram_notification(config, "🔍 No IPOs available currently")
+                send_telegram_notification(config, "🔍 <b>No IPOs</b>\n\nNo open IPO on ASBA at the moment.")
                 return True
             applied_count = 0
             ipo_index = 0
@@ -824,18 +853,47 @@ def main():
                 company_name = matching_ipo.get('company_name', 'Unknown')
                 ipo_index = matching_ipo.get('row_index', 0)
                 logger.info(f"Found matching IPO: {company_name}")
-                send_telegram_notification(config, f"✅ Found matching IPO!\n\n📊 Company: {company_name}\n💰 Price: Rs. 100\n📈 Type: IPO - Ordinary Shares\n\nApplying with all accounts...")
+                price = matching_ipo.get("price") or 100
+                share_type = matching_ipo.get("share_type") or "IPO"
+                share_group = matching_ipo.get("share_group") or "Ordinary Shares"
+                issue_open = matching_ipo.get("issue_open")
+                issue_close = matching_ipo.get("issue_close")
+                issue_manager = matching_ipo.get("issue_manager")
+                min_qty = matching_ipo.get("min_qty")
+                max_qty = matching_ipo.get("max_qty")
+                lines = [
+                    "✅ <b>Matching IPO found</b>",
+                    "",
+                    f"📊 <b>{_tg(company_name)}</b>",
+                    f"💰 Rs. {price}/share · 📈 {share_type} · {share_group}",
+                ]
+                if issue_manager:
+                    lines.append(f"🏛 {_tg(issue_manager)}")
+                if issue_open or issue_close:
+                    lines.append(f"📅 Open: {_tg(issue_open or '—')}  →  Close: {_tg(issue_close or '—')}")
+                if min_qty is not None or max_qty is not None:
+                    lines.append(f"📦 Kitta: {min_qty or '—'} – {max_qty or '—'}")
+                lines.extend(["", "Applying with all accounts…"])
+                send_telegram_notification(config, "\n".join(lines))
                 logger.info(f"Applying with check account: {account_display_name(check_account)}")
-                if apply_for_ipo_with_account(browser, check_account, config, ipo_index, company_name):
+                ok, reason = apply_for_ipo_with_account(browser, check_account, config, ipo_index, company_name)
+                if ok:
                     applied_count += 1
                     if browser.page:
                         browser.page.wait_for_timeout(3000)
                 else:
-                    send_telegram_notification(config, f"❌ Account 1 ({account_display_name(check_account)}): Apply failed (may already have applied)")
+                    send_telegram_notification(config, (
+                        "❌ <b>Apply failed</b> — Account 1\n\n"
+                        f"👤 {_tg(account_display_name(check_account))}\n"
+                        f"Reason: {_tg(reason or 'unknown')}"
+                    ))
             else:
                 if has_ipos:
                     logger.info("Account 1: No matching IPO (may already have applied). Trying other accounts...")
-                    send_telegram_notification(config, "ℹ️ Account 1: No matching IPO (may already applied). Checking accounts 2 & 3...")
+                    send_telegram_notification(config, (
+                        "ℹ️ <b>Account 1</b> — No matching IPO\n\n"
+                        "May already have applied. Checking other accounts…"
+                    ))
 
             # Step 3: Apply with all other accounts (2 and 3)
             for account_idx, account_config in enumerate(other_accounts, 2):
@@ -883,7 +941,11 @@ def main():
                             logger.warning(f"Retry failed: {retry_err}")
                     if not ok:
                         logger.error(f"Login failed: {reason}")
-                        send_telegram_notification(config, f"❌ Account {account_idx} ({account_display_name(account_config)}): {reason}")
+                        send_telegram_notification(config, (
+                            f"❌ <b>Login failed</b> — Account {account_idx}\n\n"
+                            f"👤 {_tg(account_display_name(account_config))}\n"
+                            f"Reason: {_tg(reason)}"
+                        ))
                         continue
 
                     acc_ipo_index = ipo_index
@@ -903,23 +965,45 @@ def main():
                         acc_company_name = acc_matching.get('company_name', 'Unknown')
                         logger.info(f"Account {account_idx}: Found matching IPO: {acc_company_name}")
 
-                    if apply_for_ipo_with_account(browser, account_config, config, acc_ipo_index, acc_company_name):
+                    ok, reason = apply_for_ipo_with_account(browser, account_config, config, acc_ipo_index, acc_company_name)
+                    if ok:
                         applied_count += 1
                         if browser.page:
                             browser.page.wait_for_timeout(3000)
+                    else:
+                        send_telegram_notification(config, (
+                            f"❌ <b>Apply failed</b> — Account {account_idx}\n\n"
+                            f"👤 {_tg(account_display_name(account_config))}\n"
+                            f"Reason: {_tg(reason or 'unknown')}"
+                        ))
                     
                 except Exception as e:
                     logger.error(f"Error processing account {account_idx}: {e}", exc_info=True)
-                    send_telegram_notification(config, f"❌ Account {account_idx}: Error - {str(e)[:200]}")
+                    err_msg = str(e)[:180]
+                    send_telegram_notification(config, (
+                        f"❌ <b>Error</b> — Account {account_idx}\n\n"
+                        f"👤 {_tg(account_display_name(account_config))}\n"
+                        f"{_tg(err_msg)}"
+                    ))
                     continue
             
             logger.info(f"Completed: Applied with {applied_count}/{len(accounts)} account(s)")
-            send_telegram_notification(config, f"✅ IPO Application Completed\n\nApplied with {applied_count}/{len(accounts)} account(s)")
+            if applied_count > 0:
+                send_telegram_notification(config, (
+                    "✅ <b>Done</b>\n\n"
+                    f"Applied with <b>{applied_count}/{len(accounts)}</b> account(s)."
+                ))
+            else:
+                send_telegram_notification(config, (
+                    "⚠️ <b>Done — none applied</b>\n\n"
+                    f"<b>0/{len(accounts)}</b> applications submitted.\n"
+                    "Check messages above for failure reasons."
+                ))
             return True
         
     except Exception as e:
         logger.error(f"Failed: {e}", exc_info=True)
-        send_telegram_notification(config, f"❌ Error: {str(e)[:200]}")
+        send_telegram_notification(config, f"❌ <b>Error</b>\n\n{_tg(str(e)[:250])}")
         return False
 
 
