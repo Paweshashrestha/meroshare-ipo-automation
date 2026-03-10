@@ -26,7 +26,8 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
 
 4. **Config**
    ```bash
-   cp config.yaml.example config.yaml
+   cp config.yaml.example config.yaml   # Linux/macOS
+   copy config.yaml.example config.yaml # Windows
    ```
    Edit `config.yaml`: set MeroShare account(s) and Telegram. See [Configuration](#configuration) and [Multiple accounts](#multiple-accounts) below. Use `headless: true` for no browser window, `false` to watch.
 
@@ -34,13 +35,11 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
    ```bash
    python3 src/meroshare/check.py
    ```
+   Windows: `run_check.bat` or `python src\meroshare\check.py`
 
-6. **Optional: daily run at 11:11 Nepal time (Linux with systemd)**
-   From project root:
-   ```bash
-   sudo ./setup_timer.sh
-   ```
-   No need to change system timezone; the timer uses Nepal time. Check: `sudo systemctl list-timers ipo-check.timer`. Logs: `sudo journalctl -u ipo-check.service`.
+6. **Optional: daily run at 11:11 Nepal time**
+   - **Linux**: From project root run `sudo ./setup_timer.sh`. Uses systemd; no need to change timezone. Check: `sudo systemctl list-timers ipo-check.timer`. Logs: `sudo journalctl -u ipo-check.service`.
+   - **Windows**: Run PowerShell as Administrator, then `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` (if needed), and `.\setup_timer_windows.ps1`. Task runs daily at 11:11 AM local time; set system timezone to Nepal (UTC+5:45) for 11:11 Nepal time. View in Task Scheduler → Task Scheduler Library → IPO-Check-MeroShare.
 
 ## Features
 
@@ -49,7 +48,7 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
 - **Form Auto-Fill**: Automatically fills application forms with account details
 - **Telegram Notifications**: Real-time notifications via Telegram bot
 - **Error Handling**: Robust error handling with detailed logging
-- **Scheduled Execution**: systemd timer runs the check daily at 11:11 Nepal time
+- **Scheduled Execution**: systemd timer (Linux) or Task Scheduler (Windows) runs the check daily at 11:11 Nepal time
 
 ## Requirements
 
@@ -121,14 +120,17 @@ headless: true
 python3 src/meroshare/check.py
 ```
 
+Windows: double-click `run_check.bat` or run `python src\meroshare\check.py` from the project folder.
+
 ### Automated (daily at 11:11 Nepal time)
 
-From project root:
-```bash
-sudo ./setup_timer.sh
-```
+- **Linux**: From project root run `sudo ./setup_timer.sh`. Uses systemd timer.
+- **Windows**: Run `.\setup_timer_windows.ps1` in PowerShell as Administrator. Set timezone to Nepal for 11:11 Nepal time.
 
-Uses a systemd timer; runs once daily at 11:11 Nepal time. No need to change system timezone.
+## Checking if Windows works
+
+- **On a Windows PC**: Open Command Prompt in the project folder, run `run_check.bat`. If it starts Python and runs (even if it later fails on login/config), paths and scripts work. To test the scheduler script: PowerShell as Administrator → `.\setup_timer_windows.ps1` → open Task Scheduler and confirm task "IPO-Check-MeroShare" exists.
+- **Without Windows**: Push the repo to GitHub and open the **Actions** tab. Run the **Windows** workflow (it uses `config.yaml.example` only—your real `config.yaml` is gitignored and never uploaded). If the run has a **green check**, the smoke test passed and the Windows setup is valid. If it’s **red**, open the run and check which step failed.
 
 ## Project Structure
 
@@ -144,8 +146,10 @@ meroshare-ipo-automation/
 │   └── config.py           # Configuration management
 ├── config.yaml             # Configuration file (create from config.yaml.example)
 ├── requirements.txt       # Python dependencies
-├── setup_timer.sh         # Systemd timer setup (daily 11:11 Nepal time)
-└── systemd/               # ipo-check.service, ipo-check.timer
+├── run_check.bat          # Windows: run check once (double-click or Task Scheduler)
+├── setup_timer.sh         # Linux: systemd timer setup (daily 11:11 Nepal time)
+├── setup_timer_windows.ps1 # Windows: Task Scheduler setup (daily 11:11 local time)
+└── systemd/               # ipo-check.service, ipo-check.timer (Linux)
 ```
 
 ## How It Works
@@ -166,7 +170,7 @@ meroshare-ipo-automation/
 - **Playwright**: Browser automation
 - **YAML**: Configuration management
 - **Telegram Bot API**: Notifications
-- **Systemd**: Service management
+- **Systemd** (Linux) / **Task Scheduler** (Windows): Scheduled runs
 
 ## License
 

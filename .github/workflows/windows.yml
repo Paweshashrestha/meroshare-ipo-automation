@@ -1,0 +1,37 @@
+name: Windows
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create venv and install deps
+        shell: pwsh
+        run: |
+          python -m venv venv
+          ./venv/Scripts/Activate.ps1
+          pip install -r requirements.txt
+
+      - name: Copy config
+        run: copy config.yaml.example config.yaml
+        # Uses example only (no secrets). Real config.yaml is gitignored and never in the repo.
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          ./venv/Scripts/Activate.ps1
+          python -c "import sys; sys.path.insert(0,'.'); from src.config import Config; c=Config(); print('config loaded'); from pathlib import Path; assert (Path('run_check.bat')).exists(); print('Windows smoke OK')"
