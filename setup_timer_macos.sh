@@ -7,8 +7,22 @@ PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/com.meroshare.ipo-check.plist"
 PYTHON_BIN="$SCRIPT_DIR/venv/bin/python"
 RUN_SCRIPT="$SCRIPT_DIR/src/scheduler/run_once.py"
+HOUR="${1:-11}"
+MINUTE="${2:-11}"
 
-echo "Setting up IPO check LaunchAgent (runs daily at 11:11 local time)..."
+if ! [[ "$HOUR" =~ ^([0-9]|1[0-9]|2[0-3])$ ]]; then
+    echo "Error: hour must be 0-23 (got '$HOUR')"
+    echo "Usage: ./setup_timer_macos.sh [hour] [minute]"
+    exit 1
+fi
+
+if ! [[ "$MINUTE" =~ ^([0-9]|[1-5][0-9])$ ]]; then
+    echo "Error: minute must be 0-59 (got '$MINUTE')"
+    echo "Usage: ./setup_timer_macos.sh [hour] [minute]"
+    exit 1
+fi
+
+echo "Setting up IPO check LaunchAgent (runs daily at $(printf "%02d:%02d" "$HOUR" "$MINUTE") local time)..."
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
     echo "Error: Python not found at $PYTHON_BIN"
@@ -40,9 +54,9 @@ cat > "$PLIST_PATH" <<EOF
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>11</integer>
+    <integer>$HOUR</integer>
     <key>Minute</key>
-    <integer>11</integer>
+    <integer>$MINUTE</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>$SCRIPT_DIR/logs/ipo-check.out.log</string>
@@ -58,8 +72,8 @@ launchctl unload "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl load "$PLIST_PATH"
 
 echo ""
-echo "LaunchAgent enabled. IPO check will run daily at 11:11 local time."
-echo "To run at 11:11 Nepal time, set macOS timezone to Asia/Kathmandu."
+echo "LaunchAgent enabled. IPO check will run daily at $(printf "%02d:%02d" "$HOUR" "$MINUTE") local time."
+echo "To run at 11:11 Nepal time, use ./setup_timer_macos.sh 11 11 and set macOS timezone to Asia/Kathmandu."
 echo ""
 echo "Commands:"
 echo "  Status:  launchctl list | rg com.meroshare.ipo-check"

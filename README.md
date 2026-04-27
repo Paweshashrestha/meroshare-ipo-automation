@@ -39,7 +39,7 @@ Automated IPO application system for MeroShare (Nepal Stock Exchange) that check
 
 6. **Optional: daily run at 11:11 Nepal time**
    - **Linux**: From project root run `sudo ./setup_timer.sh`. Uses systemd; no need to change timezone. Check: `sudo systemctl list-timers ipo-check.timer`. Logs: `sudo journalctl -u ipo-check.service`.
-   - **macOS**: From project root run `./setup_timer_macos.sh`. Uses LaunchAgent and runs at 11:11 local time; set timezone to Asia/Kathmandu for 11:11 Nepal time.
+   - **macOS**: From project root run `./setup_timer_macos.sh` (or `./setup_timer_macos.sh HOUR MINUTE`, e.g. `./setup_timer_macos.sh 1 11`). Uses LaunchAgent and runs at the provided local time; set timezone to Asia/Kathmandu for Nepal time.
    - **Windows**: Run PowerShell as Administrator, then `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` (if needed), and `.\setup_timer_windows.ps1`. Task runs daily at 11:11 AM local time; set system timezone to Nepal (UTC+5:45) for 11:11 Nepal time. View in Task Scheduler → Task Scheduler Library → IPO-Check-MeroShare.
 
 ## Features
@@ -126,7 +126,7 @@ Windows: double-click `run_check.bat` or run `python src\meroshare\check.py` fro
 ### Automated (daily at 11:11 Nepal time)
 
 - **Linux**: From project root run `sudo ./setup_timer.sh`. Uses systemd timer.
-- **macOS**: From project root run `./setup_timer_macos.sh`. Uses LaunchAgent timer.
+- **macOS**: From project root run `./setup_timer_macos.sh` (or `./setup_timer_macos.sh HOUR MINUTE`). Uses LaunchAgent timer.
 - **Windows**: Run `.\setup_timer_windows.ps1` in PowerShell as Administrator. Set timezone to Nepal for 11:11 Nepal time.
 
 ## Checking if Windows works
